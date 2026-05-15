@@ -1,0 +1,54 @@
+package com.example.hallisanthe.ui.navigation
+
+import androidx.compose.runtime.Composable
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.example.hallisanthe.ui.screens.AddProductScreen
+import com.example.hallisanthe.ui.screens.HomeScreen
+import com.example.hallisanthe.ui.screens.LoginScreen
+import com.example.hallisanthe.ui.screens.ProductDetailScreen
+import com.example.hallisanthe.ui.screens.SignupScreen
+
+
+sealed class Screen(val route: String) {
+    object Login : Screen("login")
+    object Signup : Screen("signup")
+    object Home : Screen("home")
+    object AddProduct : Screen("add_product")
+    object ProductDetail : Screen("product_detail/{productId}") {
+        fun createRoute(productId: String) = "product_detail/$productId"
+    }
+}
+
+@Composable
+fun NavGraph() {
+    val navController = rememberNavController()
+
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Login.route
+    ) {
+        composable(Screen.Login.route) {
+            LoginScreen(navController)
+        }
+        composable(Screen.Signup.route) {
+            SignupScreen(navController)
+        }
+        composable(Screen.Home.route) {
+            HomeScreen(navController)
+        }
+        composable(Screen.AddProduct.route) {
+            AddProductScreen(navController)
+        }
+        composable(
+            route = Screen.ProductDetail.route,
+            arguments = listOf(navArgument("productId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val productId = backStackEntry.arguments?.getString("productId") ?: ""
+            ProductDetailScreen(navController, productId)
+        }
+    }
+}

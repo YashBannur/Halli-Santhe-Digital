@@ -1,0 +1,24 @@
+package com.example.hallisanthe.ui.theme
+
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+
+private val HalliSantheColorScheme = lightColorScheme(
+    primary = Teal,
+    onPrimary = White,
+    secondary = Saffron,
+    onSecondary = White,
+    background = Cream,
+    onBackground = DarkBrown,
+    surface = White,
+    onSurface = DarkBrown,
+)
+
+@Composable
+fun HalliSantheTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = HalliSantheColorScheme,
+        typography = Typography(),
+        content = content
+    )
+}

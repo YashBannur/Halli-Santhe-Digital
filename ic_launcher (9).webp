@@ -1,0 +1,284 @@
+package com.example.hallisanthe.ui.screens
+
+
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import coil.compose.AsyncImage
+import com.example.hallisanthe.data.model.Product
+import com.example.hallisanthe.ui.navigation.Screen
+import com.example.hallisanthe.ui.theme.*
+import com.example.hallisanthe.viewmodel.AuthViewModel
+import com.example.hallisanthe.viewmodel.ProductViewModel
+val categories = listOf("All", "Toys", "Pottery", "Textiles", "Jewelry", "Paintings", "Other")
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreen(
+    navController: NavController,
+    productViewModel: ProductViewModel = viewModel(),
+    authViewModel: AuthViewModel = viewModel()
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("All") }
+    val products by productViewModel.products.collectAsState()
+    val isLoading by productViewModel.isLoading.collectAsState()
+
+    LaunchedEffect(Unit) {
+        productViewModel.loadProducts()
+    }
+
+
+    val filteredProducts = products.filter { product ->
+        val matchesSearch = searchQuery.isEmpty() ||
+                product.name.contains(searchQuery, ignoreCase = true)
+        val matchesCategory = selectedCategory == "All" ||
+                product.category == selectedCategory
+        matchesSearch && matchesCategory
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        "Halli-Santhe🏺",
+                        fontWeight = FontWeight.Bold,
+                        color = White
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Teal
+                ),
+                actions = {
+                    IconButton(onClick = {
+                        authViewModel.logout()
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
+                    }) {
+                        Icon(
+                            Icons.Default.ExitToApp,
+                            contentDescription = "Logout",
+                            tint = White
+                        )
+                    }
+                }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { navController.navigate(Screen.AddProduct.route) },
+                containerColor = DeepMaroon,
+                contentColor = White,
+                shape = CircleShape
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Product")
+            }
+        },
+        containerColor = Cream
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Search Bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search products...") },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = Teal)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Teal,
+                    unfocusedBorderColor = LightTeal,
+                    focusedContainerColor = White,
+                    unfocusedContainerColor = White
+                )
+            )
+
+            // Categories Row
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                items(categories) { category ->
+                    val isSelected = category == selectedCategory
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isSelected) Teal else White,
+                        modifier = Modifier.clickable { selectedCategory = category }
+                    ) {
+                        Text(
+                            text = category,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            color = if (isSelected) White else DarkBrown,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Content
+            when {
+                isLoading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Teal)
+                    }
+                }
+                filteredProducts.isEmpty() -> {
+                    EmptyStateView()
+                }
+                else -> {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(filteredProducts) { product ->
+                            ProductCard(
+                                product = product,
+                                onClick = {
+                                    navController.navigate(
+                                        Screen.ProductDetail.createRoute(product.id)
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProductCard(product: Product, onClick: () -> Unit) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = White)
+    ) {
+        Column {
+            if (product.imageUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = product.imageUrl,
+                    contentDescription = product.name,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                        .background(
+                            LightOrange,
+                            RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("🏺", fontSize = 40.sp)
+                }
+            }
+
+            Column(modifier = Modifier.padding(10.dp)) {
+                Text(
+                    text = product.name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = DarkBrown,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "₹${product.price}",
+                    color = Teal,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Cream
+                ) {
+                    Text(
+                        text = product.category,
+                        fontSize = 11.sp,
+                        color = DeepMaroon,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyStateView() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("🛖", fontSize = 72.sp)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "No Products Yet!",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = DarkBrown
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Be the first artisan to add\nyour craft to the market",
+            fontSize = 14.sp,
+            color = DarkBrown.copy(alpha = 0.6f),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
+}

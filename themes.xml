@@ -1,0 +1,21 @@
+package com.example.hallisanthe.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+// Primary Teal
+val Teal = Color(0xFF007B7F)
+val DarkTeal = Color(0xFF005F63)
+val LightTeal = Color(0xFFE0F4F4)
+
+// Accent Saffron
+val Saffron = Color(0xFFFF6F00)
+val LightOrange = Color(0xFFFFCC80)
+
+// Neutrals
+val Cream = Color(0xFFFFF8E7)
+val DarkBrown = Color(0xFF4E342E)
+val White = Color(0xFFFFFFFF)
+val LightGray = Color(0xFFF5F5F5)
+
+// Keeping for compatibility
+val DeepMaroon = Color(0xFF005F63)

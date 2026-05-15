@@ -1,0 +1,362 @@
+package com.example.hallisanthe.ui.screens
+
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import coil.compose.AsyncImage
+import com.example.hallisanthe.data.model.Product
+import com.example.hallisanthe.ui.theme.*
+import com.example.hallisanthe.viewmodel.ProductViewModel
+import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import java.util.UUID
+
+val productCategories = listOf("Toys", "Pottery", "Textiles", "Jewelry", "Paintings", "Other")
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddProductScreen(
+    navController: NavController,
+    productViewModel: ProductViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    var name by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("Toys") }
+    var sellerPhone by remember { mutableStateOf("") }
+    var imageUri by remember { mutableStateOf<Uri?>(null) }
+    var isUploading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri -> imageUri = uri }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Add Product", color = White, fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = White)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Teal)
+            )
+        },
+        containerColor = Cream
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+
+            // Image Picker
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(LightOrange.copy(alpha = 0.3f))
+                    .border(2.dp, LightOrange, RoundedCornerShape(16.dp))
+                    .clickable { imagePicker.launch("image/*") },
+                contentAlignment = Alignment.Center
+            ) {
+                if (imageUri != null) {
+                    AsyncImage(
+                        model = imageUri,
+                        contentDescription = "Product Image",
+                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("📸", fontSize = 48.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Tap to add product photo",
+                            color = DarkBrown.copy(alpha = 0.6f),
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
+
+            // Product Name
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Product Name *") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Saffron,
+                    unfocusedBorderColor = LightOrange,
+                    focusedContainerColor = White,
+                    unfocusedContainerColor = White
+                )
+            )
+
+            // Price
+            OutlinedTextField(
+                value = price,
+                onValueChange = { price = it },
+                label = { Text("Price (₹) *") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Saffron,
+                    unfocusedBorderColor = LightOrange,
+                    focusedContainerColor = White,
+                    unfocusedContainerColor = White
+                )
+            )
+
+            // Description
+            var isGenerating by remember { mutableStateOf(false) }
+
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Description") },
+                modifier = Modifier.fillMaxWidth().height(100.dp),
+                maxLines = 4,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Saffron,
+                    unfocusedBorderColor = LightOrange,
+                    focusedContainerColor = White,
+                    unfocusedContainerColor = White
+                )
+            )
+
+// AI Generate button
+            TextButton(
+                onClick = {
+                    if (name.isBlank()) {
+                        errorMessage = "Enter product name first to generate description"
+                        return@TextButton
+                    }
+                    isGenerating = true
+                    val templates = listOf(
+                        "Beautifully handcrafted $name made by skilled local artisans using traditional techniques passed down through generations.",
+                        "Authentic $name crafted with love by rural artisans. A perfect blend of tradition and artistry.",
+                        "This exquisite $name is handmade using age-old methods, preserving the rich cultural heritage of Indian craftsmanship.",
+                        "A stunning $name that showcases the incredible talent of local artisans. Each piece is unique and made with care.",
+                        "Handmade $name that supports rural artisans and keeps traditional Indian crafts alive for future generations."
+                    )
+                    description = templates.random()
+                    isGenerating = false
+                },
+                enabled = !isGenerating
+            ) {
+                if (isGenerating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = Saffron
+                    )
+                } else {
+                    Text("✨ Generate AI Description", color = Saffron, fontSize = 13.sp)
+                }
+            }
+
+            // Seller Phone
+            OutlinedTextField(
+                value = sellerPhone,
+                onValueChange = { sellerPhone = it },
+                label = { Text("Seller Phone *") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Saffron,
+                    unfocusedBorderColor = LightOrange,
+                    focusedContainerColor = White,
+                    unfocusedContainerColor = White
+                )
+            )
+
+            // Category
+            Text("Category *", fontWeight = FontWeight.Medium, color = DarkBrown, fontSize = 14.sp)
+            ExposedDropdownCategory(
+                selected = selectedCategory,
+                onSelected = { selectedCategory = it }
+            )
+
+            // Error
+            if (errorMessage.isNotEmpty()) {
+                Text(errorMessage, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+            }
+
+            // Submit Button
+            Button(
+                onClick = {
+                    if (name.isBlank() || price.isBlank() || sellerPhone.isBlank()) {
+                        errorMessage = "Please fill all required fields"
+                        return@Button
+                    }
+                    scope.launch {
+                        isUploading = true
+                        errorMessage = ""
+                        try {
+                            val imageUrl = if (imageUri != null) {
+                                uploadImageToFirebase(imageUri!!, context)
+                            } else ""
+
+                            val product = Product(
+                                name = name.trim(),
+                                price = price.trim(),
+                                description = description.trim(),
+                                category = selectedCategory,
+                                imageUrl = imageUrl,
+                                sellerPhone = sellerPhone.trim()
+                            )
+                            productViewModel.addProduct(
+                                product,
+                                onSuccess = { navController.popBackStack() },
+                                onError = { errorMessage = it }
+                            )
+                        } catch (e: Exception) {
+                            errorMessage = "Upload failed: ${e.message}"
+                        }
+                        isUploading = false
+                    }
+                },
+                enabled = !isUploading,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Saffron)
+            ) {
+                if (isUploading) {
+                    CircularProgressIndicator(
+                        color = White,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(20.dp)
+                    )
+                } else {
+                    Text("Upload Product 🏺", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExposedDropdownCategory(selected: String, onSelected: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded }
+    ) {
+        OutlinedTextField(
+            value = selected,
+            onValueChange = {},
+            readOnly = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Saffron,
+                unfocusedBorderColor = LightOrange,
+                focusedContainerColor = White,
+                unfocusedContainerColor = White
+            )
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            productCategories.forEach { category ->
+                DropdownMenuItem(
+                    text = { Text(category) },
+                    onClick = {
+                        onSelected(category)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+suspend fun uploadImageToFirebase(uri: Uri, context: android.content.Context): String {
+    return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        val originalBitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+        val outputStream = java.io.ByteArrayOutputStream()
+        originalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 60, outputStream)
+        val compressedBytes = outputStream.toByteArray()
+
+        val cloudName = "derbhoda2"
+        val uploadPreset = "Halli_Santhe"
+
+        val requestBody = okhttp3.MultipartBody.Builder()
+            .setType(okhttp3.MultipartBody.FORM)
+            .addFormDataPart(
+                "file",
+                "product.jpg",
+                okhttp3.RequestBody.create(
+                    "image/jpeg".toMediaTypeOrNull(),
+                    compressedBytes
+                )
+            )
+            .addFormDataPart("upload_preset", uploadPreset)
+            .build()
+
+        val request = okhttp3.Request.Builder()
+            .url("https://api.cloudinary.com/v1_1/$cloudName/image/upload")
+            .post(requestBody)
+            .build()
+
+        val client = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+
+        val response = client.newCall(request).execute()
+        val responseBody = response.body?.string()
+            ?: throw Exception("No response from Cloudinary")
+
+        if (!response.isSuccessful) {
+            throw Exception("Cloudinary error: $responseBody")
+        }
+
+        val jsonObject = org.json.JSONObject(responseBody)
+        jsonObject.getString("secure_url")
+    }
+}
